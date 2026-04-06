@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "mailgen": "^2.0.32",
+    "mongoose": "^9.4.1"
+  },
+  "name": "system",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev":"node --watch src/index.js",
+    "start":"node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
