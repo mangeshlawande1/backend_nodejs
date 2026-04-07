@@ -3,7 +3,11 @@ import nodemailer from "nodemailer"
 import "dotenv/config";
 
 /**
-  semd mail is always async 
+ * prepare the constent 
+ * send an email 
+ * test email   
+  send mail is always async 
+
 
  */
 const sendEmail = async (options) => {

@@ -14,6 +14,14 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "imports":{
+    "#models/*":"./src/models/*",
+    "#middlewares/*":"./src/middlewares/*",
+    "#validators/*":"./src/validators/*",
+    "#controllers/*":"./src/controllers/*",
+    "#utils/*":"./src/utils/*",
+    "#routes/*":"./src/routes/*"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "node --watch src/index.js",
