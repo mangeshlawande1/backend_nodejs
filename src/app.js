@@ -17,6 +17,13 @@ app.use(cors(
     }
 ))
 
+// import routes
+import healthCheckRouter from "./routes/healthcheck.routes.js"
+
+
+app.use("/api/v1/healthcheck", healthCheckRouter);
+
+
 
 app.get('/', (req, res) => {
     res.status(200).send("processes is running ...")
