@@ -19,14 +19,14 @@ const generateAccessAndRefreshTokens = async (userId) => {
     }
 }
 
-const registerUser = asyncHandler(async (requestAnimationFrame, res) => {
-    const { email, username, password, role } = req.body
+const registerUser = asyncHandler(async (req, res) => {
+    const { email, username, password } = req.body
 
-    const esxistedUser = await User.fondOne({
+    const existedUser = await User.findOne({
         $or: [{ username, email }]
     });
 
-    if (esxistedUser) {
+    if (existedUser) {
         throw new ApiError(409, "User With Email or Username already exists. ", [])
     }
 
@@ -34,14 +34,13 @@ const registerUser = asyncHandler(async (requestAnimationFrame, res) => {
         email,
         username,
         password,
-        role,
         isEmailVerified: false,
     });
 
     const { unHashedToken, hashedToken, tokenExpiry } = user.generateTemporaryToken();
 
     user.emailVerificationToken = hashedToken
-    user.emailVerfificationExpiry = tokenExpiry
+    user.emailVerificationExpiry = tokenExpiry
 
     await user.save({ validateBeforeSave: false })
 
@@ -74,3 +73,9 @@ const registerUser = asyncHandler(async (requestAnimationFrame, res) => {
         )
 });
 
+
+
+export {
+    registerUser,
+
+}

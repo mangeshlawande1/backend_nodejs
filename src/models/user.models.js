@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
-const UserSchema = new Schema(
+const userSchema = new Schema(
   {
     avatar: {
       type: {
@@ -54,26 +54,26 @@ const UserSchema = new Schema(
     emailVerificationToken: {
       type: String,
     },
-    EmailVerificationExpiry: {
+    emailVerificationExpiry: {
       type: Date,
     },
   },
   { timestamps: true },
 );
 
-UserSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
   this.password = await bcrypt.hash(this.password, 10);
-  next();
+
 });
 
-UserSchema.methods.isPasswordCorrect = async function (password) {
+userSchema.methods.isPasswordCorrect = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
 // generate a token with data
-UserSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateAccessToken = function () {
   return jwt.sign(
     {
       _id: this._id,
@@ -87,7 +87,7 @@ UserSchema.methods.generateAccessToken = function () {
   );
 };
 
-UserSchema.methods.generateRefreshToken = function () {
+userSchema.methods.generateRefreshToken = function () {
   return jwt.sign(
     {
       _id: this._id,
@@ -102,7 +102,7 @@ UserSchema.methods.generateRefreshToken = function () {
 };
 
 // how we can generate a token without data
-UserSchema.methods.generateTemporaryToken = function () {
+userSchema.methods.generateTemporaryToken = function () {
   const unHashedToken = crypto.randomBytes(20).toString("hex");
 
   const hashedToken = crypto
@@ -114,4 +114,4 @@ UserSchema.methods.generateTemporaryToken = function () {
   return { unHashedToken, hashedToken, tokenExpiry };
 };
 
-export const User = mongoose.model("User", UserSchema);
+export const User = mongoose.model("User", userSchema);

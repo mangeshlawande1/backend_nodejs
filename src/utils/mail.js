@@ -65,7 +65,7 @@ const emailVerificationMailgenContent = (username, verificationUrl) => {
             name: username,
             intro: "Welcome to our app, we are excited to have you on board.",
             action: {
-                instructions: "To Verify your Email , Please Click on followinf button",
+                instructions: "To Verify your Email , Please Click on following button",
                 button: {
                     color: "#22BC66",
                     text: "verify your Email",
