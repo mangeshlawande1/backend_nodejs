@@ -73,9 +73,151 @@ const registerUser = asyncHandler(async (req, res) => {
         )
 });
 
+//cookie-parser
+const login = asyncHandler(async (req, res) => {
+    const { email, username, password } = req.body
 
+    if (!email && !username) {
+        throw new ApiError(403, "Username or email required ")
+    };
+
+    const user = await User.findOne({ email })
+
+    if (!user) {
+        throw new ApiError(402, "User not found !!");
+    };
+
+    const isValidPassword = await user.isPasswordCorrect(password);
+
+    if (!isValidPassword) {
+        throw new ApiError(404, "Incorrect Password ")
+    };
+
+    // create access and refresh token 
+    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user?._id)
+
+    const loggedInUser = await User.findById(user._id).select(
+        "-password -refreshToken -emailVerificationToken -emailVerificationExpiry"
+    );
+
+    // generate cookies --> required options 
+    const options = {
+        httpOnly: true,
+        secure: true
+    };
+
+    res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                201,
+                {
+                    user: loggedInUser,
+                    accessToken,
+                    refreshToken
+                },
+                "User logged in Successfully"
+            )
+        );
+});
+
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findOneAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                refreshToken: ""
+            }
+        },
+        {
+            new: true,
+        }
+    );
+
+    const options = {
+        httpOnly: true,
+        secure: true,
+    };
+
+    return res
+        .status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(
+            new ApiResponse(
+                200, {}, "User Logged Out successfully !"
+            )
+        );
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                req.user,
+                "Current user fetched successfully "
+            )
+        );
+});
+
+
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { verificationToken } = req.params
+
+    if (!verificationToken) {
+        throw new ApiError(403, "Email verification TOKEN IS MISSING");
+    };
+
+    let hashedToken = crypto
+        .crateHash("sha256")
+        .update(verificationToken)
+        .digest("hex")
+
+    const user = await User.findOne({
+        emailVerificationToken: hashedToken,
+        emailVerificationExpiry: { $gt: Date.now() }
+    });
+
+    if (!user) {
+        throw new ApiError(403, " TOKEN IS EXPIRED OR INVALID");
+    };
+
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpiry = undefined;
+
+    user.isEmailVerified = true
+    await user.save({ validateBeforeSave: false });
+
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    isEmailVerified: true
+                },
+                "Email is verified"
+            ));
+});
+
+
+
+// const verifyEmail = asyncHandler(async (req, res) => {
+
+// });
 
 export {
     registerUser,
+    login,
+    logoutUser,
+    getCurrentUser,
+    verifyEmail,
+    
+
 
 }

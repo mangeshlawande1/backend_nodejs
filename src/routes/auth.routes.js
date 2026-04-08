@@ -1,6 +1,7 @@
-import { registerUser } from "#controllers/auth.controllers.js";
-import { validate } from "#validators/validator.middleware.js";
-import { userRegisterValidator } from "#validators/index.js";
+import { login, logoutUser, registerUser } from "#controllers/auth.controllers.js";
+import { verifyJWT } from "#middlewares/auth.middleware.js";
+import { validate } from "#middlewares/validator.middleware.js";
+import { userLoginValidator, userRegisterValidator } from "#validators/index.js";
 import { Router } from "express";
 
 
@@ -11,6 +12,12 @@ const router = Router();
  validator --> middlware 
  
  */
-router.route("/register").post(userRegisterValidator(),validate, registerUser);
+router.route("/register").post(userRegisterValidator(), validate, registerUser);
+router.route("/login").post(userLoginValidator(), validate, login);
+
+// private routes 
+router.route("/logout").post(verifyJWT,  logoutUser);
+
+
 
 export default router;
