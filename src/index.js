@@ -9,7 +9,7 @@ import connectDB from './db/database.js'
 // });
 
 
-const port = process.env.PORT || 4000
+const port = process.env.PORT || 3001
 
 connectDB()
     .then(() => {
