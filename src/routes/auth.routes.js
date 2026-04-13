@@ -1,7 +1,24 @@
-import { changeCurrentPassword, forgotPasswordRequest, getCurrentUser, login, logoutUser, refreshAccessToken, registerUser, resendEmailVerification, resetForgotPassword, verifyEmail } from "#controllers/auth.controllers.js";
+import {
+    changeCurrentPassword,
+    forgotPasswordRequest,
+    getCurrentUser,
+    login,
+    logoutUser,
+    refreshAccessToken,
+    registerUser,
+    resendEmailVerification,
+    resetForgotPassword,
+    verifyEmail
+} from "#controllers/auth.controllers.js";
 import { verifyJWT } from "#middlewares/auth.middleware.js";
 import { validate } from "#middlewares/validator.middleware.js";
-import { userChangeCurrentPasswordValidator, userForgotPasswordValidator, userLoginValidator, userRegisterValidator, userResetForgotPassowrdValidator } from "#validators/index.js";
+import {
+    userChangeCurrentPasswordValidator,
+    userForgotPasswordValidator,
+    userLoginValidator,
+    userRegisterValidator,
+    userResetForgotPassowrdValidator
+} from "#validators/index.js";
 import { Router } from "express";
 
 
