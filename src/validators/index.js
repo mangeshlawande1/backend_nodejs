@@ -118,6 +118,8 @@ const addMemberToProjectValidator = () => {
 }
 
 export {
+    createProjectValidator,
+    addMemberToProjectValidator,
     userRegisterValidator,
     userLoginValidator,
     userChangeCurrentPasswordValidator,
