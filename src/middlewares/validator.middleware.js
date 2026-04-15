@@ -1,20 +1,14 @@
 import { ApiError } from "#utils/ApiError.js";
 import { validationResult } from "express-validator";
 
-// design the middleware() --> validation
 export const validate = (req, res, next) => {
-    const errors = validationResult(req)
+    const errors = validationResult(req);
 
-    if (!errors.isEmpty()) {
-        return next();
-    };
-    const extractedErrors = []
-    errors.array().map((err) => extractedErrors.push({ [err.path]: err.msg }));
+    if (errors.isEmpty()) return next();
 
-    throw new ApiError(423,
-        "Received data is not valid", extractedErrors,
-    );
+    const extractedErrors = errors.array().map((err) => ({
+        [err.path]: err.msg,
+    }));
 
+    throw new ApiError(400, "Invalid request data", extractedErrors);
 };
-
-
