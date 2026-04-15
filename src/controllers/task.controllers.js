@@ -7,10 +7,11 @@ import { asyncHandler } from "#utils/asyncHandler.js";
 import { UserRoleEnum } from "#utils/constants.js";
 import mongoose from "mongoose";
 
+
 const getTasks = asyncHandler(async (req, res) => {
     // test
     const { projectId } = req.params;
-    const project = await Project.findById(projectId);
+    const project = await Project.exists({ _id: projectId });
 
     if (!project) {
         throw new ApiError(404, "Project not found")
@@ -28,15 +29,19 @@ const getTasks = asyncHandler(async (req, res) => {
 
 });
 
-
 const createTask = asyncHandler(async (req, res) => {
     const { title, description, assignedTo, status } = req.body;
     const { projectId } = req.params;
 
-    const project = Project.findById(projectId);
+    const project = await Project.exists({ _id: projectId });
     if (!project) {
         throw new ApiError(404, "Project not found")
     }
+
+    if (!title || !title.trim()) {
+        throw new ApiError(400, "Title is required");
+    }
+
     // mimetype :: extension of file like .pdf , .csv etc
     const files = req.files || [];
     const attachments = files.map((file) => {
@@ -48,7 +53,7 @@ const createTask = asyncHandler(async (req, res) => {
     });
 
     const task = await Task.create({
-        title,
+        title: title.trim(),
         description,
         project: projectId,
         assignedTo: assignedTo || undefined,
@@ -65,15 +70,15 @@ const createTask = asyncHandler(async (req, res) => {
 
 });
 
-
-
-
 const getTaskById = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
+    const { projectId, taskId } = req.params;
 
     const task = await Task.aggregate([
         {
-            $match: { _id: new mongoose.Types.ObjectId(taskId) }
+            $match: {
+                _id: new mongoose.Types.ObjectId(taskId),
+                project: new mongoose.Types.ObjectId(projectId),
+            },
         },
         {
             //assignedTo
@@ -142,22 +147,24 @@ const getTaskById = asyncHandler(async (req, res) => {
 
     ]);
 
-    if (!task || task.length === 0) {
+    if (!task.length) {
         throw new ApiError(404, "Task not found !")
     }
+
     return res
         .status(200).json(new ApiResponse(200, task[0], "Tasks fetched Successfully !!"))
 });
 
-
 const updateTask = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
+    const { projectId, taskId } = req.params;
     const { title, description, status, assignedTo } = req.body;
 
-    const task = await Task.findById(taskId);
-
+    const task = await Task.findOne({
+        _id: taskId,
+        project: projectId,
+    });
     if (!task) {
-        throw new ApiError(404, "Task not found");
+        throw new ApiError(404, "Task not found in this project");
     }
 
     // Authorization (admin or creator)
@@ -168,10 +175,9 @@ const updateTask = asyncHandler(async (req, res) => {
         throw new ApiError(403, "Not allowed to update this task");
     }
 
-    task.title = title ?? task.title;
-    task.description = description ?? task.description;
-    task.status = status ?? task.status;
-    task.assignedTo = assignedTo ?? task.assignedTo;
+    if (description !== undefined) task.description = description;
+    if (status !== undefined) task.status = status;
+    if (assignedTo !== undefined) task.assignedTo = assignedTo;
 
     await task.save();
 
@@ -181,12 +187,15 @@ const updateTask = asyncHandler(async (req, res) => {
 });
 
 const deleteTask = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
+    const { projectId, taskId } = req.params;
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findOne({
+        _id: taskId,
+        project: projectId,
+    });
 
     if (!task) {
-        throw new ApiError(404, "Task not found");
+        throw new ApiError(404, "Task not found in this project");
     }
 
     if (
@@ -197,17 +206,12 @@ const deleteTask = asyncHandler(async (req, res) => {
     }
 
     await task.deleteOne();
-
-    // optional: delete subtasks
     await SubTask.deleteMany({ task: taskId });
 
     return res.status(200).json(
         new ApiResponse(200, {}, "Task deleted successfully")
     );
 });
-
-
-
 
 
 export {
