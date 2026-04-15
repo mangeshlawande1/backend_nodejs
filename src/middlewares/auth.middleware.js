@@ -3,7 +3,6 @@ import { User } from "#models/user.models.js";
 import { ApiError } from "#utils/ApiError.js";
 import { asyncHandler } from "#utils/asyncHandler.js";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
 
 
 export const verifyJWT = asyncHandler(async (req, res, next) => {
@@ -31,35 +30,42 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     } catch (error) {
         throw new ApiError(508, error || "Invalid Access Token")
     };
-
-
 });
 
+export const allowAdmin = (req, _, next) => {
+    if (req.user.role !== UserRoleEnum.ADMIN) {
+        throw new ApiError(403, "Admin only access");
+    }
+    next();
+};
+
 export const validateProjectPermission = (roles = []) => {
-    asyncHandler(async (req, res, next) => {
-        const { projectId } = req.params
+    return asyncHandler(async (req, _, next) => {
+        const { projectId } = req.params;
+
         if (!projectId) {
-            throw new ApiError(400, "Project Id not Found !!")
+            throw new ApiError(400, "Project Id not Found !!");
         }
 
         let project = await ProjectMember.findOne({
-            project: new mongoose.Types.ObjectId(projectId),
-            user: new mongoose.Types.ObjectId(req.user._id),
+            project: projectId,
+            user: req.user._id,
         });
 
         if (!project) {
-            throw new ApiError(400, "Project  not Found !!")
+            throw new ApiError(400, "Project not Found !!");
         }
-        const givenRole = project?.role;
 
-        req.user.role = givenRole
+        const givenRole = project?.role;
+        req.user.role = givenRole;
 
         if (!roles.includes(givenRole)) {
             throw new ApiError(
-                403, "You do not have Permission to perform this action !"
-            )
+                403,
+                "You do not have Permission to perform this action !"
+            );
         }
+
         next();
     });
-
 };

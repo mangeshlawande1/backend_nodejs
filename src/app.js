@@ -1,13 +1,17 @@
 import express from 'express'
 import cors from "cors"
 import cookieParser from 'cookie-parser'
-
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./docs/swagger.js";
 
 const app = express()
 app.use(express.json({ limit: "16kb" }))
 app.use(express.urlencoded({ extended: true, limit: "16kb " }))
 app.use(express.static("public"));
 app.use(cookieParser())
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+
 
 // cors configurations--> allowed communication 
 app.use(cors(

@@ -13,21 +13,19 @@ import {
     deleteSubTask
 } from "#controllers/subtask.controllers.js";
 
+import { validate } from "#middlewares/validator.middleware.js";
+import { verifyJWT, allowAdmin } from "#middlewares/auth.middleware.js";
 import {
+    
     createTaskValidator,
     updateTaskValidator,
     getTaskValidator,
-    getTasksValidator
-} from "#validators/task.validators.js";
-
-import {
+    getTasksValidator,
     createSubTaskValidator,
     updateSubTaskValidator,
     deleteSubTaskValidator
-} from "#validators/subtask.validators.js";
 
-import { validate } from "#middlewares/validator.middleware.js";
-import { verifyJWT, allowAdmin } from "#middlewares/auth.middleware.js";
+} from "#validators/index.js";
 
 const router = express.Router();
 
