@@ -6,23 +6,11 @@ import { asyncHandler } from "#utils/asyncHandler.js";
 import { UserRoleEnum } from "#utils/constants.js";
 
 
-
-
-/**
- create note user //create
-update notes by Admin or user //update  
-get all notes by project //read
-get note by id  // 
-delete note admin or createdBy //delete
-
-
-*/
-
 const createProjectNote = asyncHandler(async (req, res) => {
     const { projectId } = req.params;
     const { content } = req.body;
 
-    const project = await Project.findById(projectId);
+    const project = await Project.exists({ _id: projectId });
 
     if (!project) {
         throw new ApiError(404, "Project Not Found !!");
@@ -43,78 +31,79 @@ const createProjectNote = asyncHandler(async (req, res) => {
 
     return res
         .status(201)
-        .json(new ApiResponse(200, projectNote, "Project note created successfully"))
+        .json(new ApiResponse(201, projectNote, "Project note created successfully"))
 
 });
-
 
 const updateProjectNote = asyncHandler(async (req, res) => {
-    const { projectNoteId } = req.params;
+    const { projectId, noteId } = req.params;
     const { content } = req.body;
 
-    const projectNote = await ProjectNote.findById(projectNoteId);
 
-    if (!projectNote) {
-        throw new ApiError(404, " Project Note not found !")
-    };
-
-    if (!content || !content.trim()) {
-        throw new ApiError(400, "content is required !!");
-    };
-
-    //authorization check 
-    if (
-        projectNote.createdBy.toString() !== req.user._id.toString() &&
-        req.user.role !== UserRoleEnum.ADMIN
-    ) {
-        throw new ApiError(403, "You are not allowed to update this note!")
-    };
-
-    projectNote.content = content;
-    await projectNote.save({ validateBeforeSave: false });
-
-    return res.status(200).json(
-        new ApiResponse(200, projectNote, "Project note updated successfully")
-    );
-
-});
-
-
-const deleteProjectNote = asyncHandler(async (req, res) => {
-
-    const { projectNoteId } = req.params;
-
-    const note = await ProjectNote.findById(projectNoteId);
+    const note = await ProjectNote.findOne({
+        _id: noteId,
+        project: projectId
+    });
 
     if (!note) {
-        throw new ApiError(404, "Project Note not found !! ");
-    };
+        throw new ApiError(404, "Note not found in this project!");
+    }
 
+    if (!content || !content.trim()) {
+        throw new ApiError(400, "Content is required!");
+    }
+
+    // Authorization
     if (
         note.createdBy.toString() !== req.user._id.toString() &&
         req.user.role !== UserRoleEnum.ADMIN
     ) {
-        throw new ApiError(403, "You are not allowed to delete this note!");
-    };
+        throw new ApiError(403, "Not allowed to update this note!");
+    }
+
+    note.content = content;
+    await note.save();
+
+    return res.status(200).json(
+        new ApiResponse(200, note, "Note updated successfully")
+    );
+});
+
+const deleteProjectNote = asyncHandler(async (req, res) => {
+    const { projectId, noteId } = req.params;
+
+    const note = await ProjectNote.findOne({
+        _id: noteId,
+        project: projectId
+    });
+
+    if (!note) {
+        throw new ApiError(404, "Note not found in this project!");
+    }
+
+    // Authorization
+    if (
+        note.createdBy.toString() !== req.user._id.toString() &&
+        req.user.role !== UserRoleEnum.ADMIN
+    ) {
+        throw new ApiError(403, "Not allowed to delete this note!");
+    }
 
     await note.deleteOne();
 
-    return res
-        .status(200)
-        .json(
-            new ApiResponse(200, {}, "Project note deleted successfully")
-        );
-
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Note deleted successfully")
+    );
 });
 
 
 const getProjectNotes = asyncHandler(async (req, res) => {
     //📖 3. Get All Notes by Project
+    const { projectId } = req.params;
     const { page = 1, limit = 10 } = req.query;
 
-    const { projectId } = req.params;
-
-    const pageNumber = Math.max(parseInt(page) || 1, 1); const limitNumber = Math.min(parseInt(limit) || 10, 50);
+    const pageNumber = Math.max(Number(page) || 1, 1);
+    const limitNumber = Math.min(Number(limit) || 10, 50);
 
     const skip = (pageNumber - 1) * limitNumber;
 
@@ -144,27 +133,23 @@ const getProjectNotes = asyncHandler(async (req, res) => {
     );
 });
 
-
 const getProjectNotesById = asyncHandler(async (req, res) => {
-    //Get Note by ID
-    const { projectNoteId } = req.params;
+    const { projectId, noteId } = req.params;
 
-    const note = await ProjectNote
-        .findById(projectNoteId)
-        .populate("createdBy", "name email ")
+    const note = await ProjectNote.findOne({
+        _id: noteId,
+        project: projectId
+    })
+        .populate("createdBy", "name email")
         .populate("project", "name");
 
-
     if (!note) {
-        throw new ApiError(404, "Project Note not found!");
+        throw new ApiError(404, "Note not found in this project!");
     }
 
-    return res.status(201).json(
-        new ApiResponse(200, note, "Project note fetched successfully")
+    return res.status(200).json(
+        new ApiResponse(200, note, "Note fetched successfully")
     );
-
-
-
 });
 
 export {
