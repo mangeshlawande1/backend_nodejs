@@ -1,5 +1,5 @@
 import { Project } from "#models/project.models.js";
-import { SubTask } from "#models/substask.models.js";
+import { SubTask } from "#models/subtask.models.js";
 import { Task } from "#models/task.models.js";
 import { ApiError } from "#utils/ApiError.js";
 import { ApiResponse } from "#utils/ApiResponse.js";
