@@ -6,58 +6,22 @@ import { asyncHandler } from "#utils/asyncHandler.js";
 import { UserRoleEnum } from "#utils/constants.js";
 
 
-
-
-const getSubTasks = asyncHandler(async (req, res) => {
-    const { taskId } = req.params;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-        throw new ApiError(404, "Task not found");
-    }
-
-    const subTasks = await SubTask.find({ task: taskId })
-        .populate("createdBy", "username fullname avatar")
-        .sort({ createdAt: -1 });
-
-    return res.status(200).json(
-        new ApiResponse(200, subTasks, "Subtasks fetched successfully")
-    );
-});
-
-
-
-
-const getSubTaskById = asyncHandler(async (req, res) => {
-    const { subTaskId } = req.params;
-
-    const subTask = await SubTask.findById(subTaskId)
-        .populate("createdBy", "username fullname avatar")
-        .populate("task", "title");
-
-    if (!subTask) {
-        throw new ApiError(404, "Subtask not found");
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, subTask, "Subtask fetched successfully")
-    );
-});
-
-
-
-
+// 📌 CREATE SUBTASK
 const createSubTask = asyncHandler(async (req, res) => {
+    const { projectId, taskId } = req.params;
     const { title } = req.body;
-    const { taskId } = req.params;
 
     if (!title || !title.trim()) {
         throw new ApiError(400, "Title is required");
     }
 
-    const task = await Task.findById(taskId);
+    const task = await Task.findOne({
+        _id: taskId,
+        project: projectId,
+    });
+
     if (!task) {
-        throw new ApiError(404, "Task not found");
+        throw new ApiError(404, "Task not found in this project");
     }
 
     const subTask = await SubTask.create({
@@ -72,17 +36,17 @@ const createSubTask = asyncHandler(async (req, res) => {
 });
 
 
+// 📌 UPDATE SUBTASK
 const updateSubTask = asyncHandler(async (req, res) => {
-    const { subTaskId } = req.params;
+    const { projectId, subTaskId } = req.params;
     const { title, isCompleted } = req.body;
 
-    const subTask = await SubTask.findById(subTaskId);
+    const subTask = await SubTask.findById(subTaskId).populate("task");
 
-    if (!subTask) {
-        throw new ApiError(404, "Subtask not found");
+    if (!subTask || subTask.task.project.toString() !== projectId) {
+        throw new ApiError(404, "Subtask not found in this project");
     }
 
-    // Authorization
     if (
         subTask.createdBy.toString() !== req.user._id.toString() &&
         req.user.role !== UserRoleEnum.ADMIN
@@ -91,9 +55,7 @@ const updateSubTask = asyncHandler(async (req, res) => {
     }
 
     if (title !== undefined) {
-        if (!title.trim()) {
-            throw new ApiError(400, "Title cannot be empty");
-        }
+        if (!title.trim()) throw new ApiError(400, "Title cannot be empty");
         subTask.title = title.trim();
     }
 
@@ -109,14 +71,14 @@ const updateSubTask = asyncHandler(async (req, res) => {
 });
 
 
-
+// 📌 DELETE SUBTASK
 const deleteSubTask = asyncHandler(async (req, res) => {
-    const { subTaskId } = req.params;
+    const { projectId, subTaskId } = req.params;
 
-    const subTask = await SubTask.findById(subTaskId);
+    const subTask = await SubTask.findById(subTaskId).populate("task");
 
-    if (!subTask) {
-        throw new ApiError(404, "Subtask not found");
+    if (!subTask || subTask.task.project.toString() !== projectId) {
+        throw new ApiError(404, "Subtask not found in this project");
     }
 
     if (
@@ -133,11 +95,8 @@ const deleteSubTask = asyncHandler(async (req, res) => {
     );
 });
 
-
 export {
     createSubTask,
     updateSubTask,
     deleteSubTask,
-    getSubTasks,
-    getSubTaskById,
 };
