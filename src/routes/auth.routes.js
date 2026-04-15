@@ -17,7 +17,7 @@ import {
     userForgotPasswordValidator,
     userLoginValidator,
     userRegisterValidator,
-    userResetForgotPassowrdValidator
+    userResetForgotPasswordValidator
 } from "#validators/index.js";
 import { Router } from "express";
 
@@ -36,7 +36,7 @@ router.route("/login").post(userLoginValidator(), validate, login);
 router.route("/verify-email/:verificationToken").get(verifyEmail);
 router.route("/refresh-token").post(refreshAccessToken);
 router.route("/forgot-password").post(userForgotPasswordValidator(), validate, forgotPasswordRequest);
-router.route("/reset-password/:resetToken").post(userResetForgotPassowrdValidator(), validate, resetForgotPassword);
+router.route("/reset-password/:resetToken").post(userResetForgotPasswordValidator(), validate, resetForgotPassword);
 
 
 
