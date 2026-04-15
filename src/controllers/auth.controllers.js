@@ -77,8 +77,6 @@ const registerUser = asyncHandler(async (req, res) => {
     } catch (error) {
         throw new ApiError(501, error)
     }
-
-
 });
 
 //cookie-parser

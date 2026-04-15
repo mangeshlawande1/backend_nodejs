@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { User } from "#models/user.models.js";
 import { Project } from "#models/project.models.js";
 import { ProjectMember } from "#models/projectmember.models.js";
@@ -5,13 +6,17 @@ import { ProjectMember } from "#models/projectmember.models.js";
 import { ApiResponse } from "#utils/ApiResponse.js";
 import { ApiError } from "#utils/ApiError.js";
 import { asyncHandler } from "#utils/asyncHandler.js";
-import mongoose from "mongoose";
 import { AvailableUserRole, UserRoleEnum } from "#utils/constants.js";
 
-
+//
 // 🔐 Helper: Check Admin
+//
 const checkAdmin = async (projectId, userId) => {
-    const isAdmin = await ProjectMember.findOne({
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new ApiError(400, "Invalid projectId");
+    }
+
+    const isAdmin = await ProjectMember.exists({
         project: projectId,
         user: userId,
         role: UserRoleEnum.ADMIN,
@@ -22,9 +27,8 @@ const checkAdmin = async (projectId, userId) => {
     }
 };
 
-
 //
-// 📌 GET ALL PROJECTS (User Projects)
+// 📌 GET ALL PROJECTS
 //
 const getProjects = asyncHandler(async (req, res) => {
     const projects = await ProjectMember.aggregate([
@@ -78,14 +82,26 @@ const getProjects = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
 // 📌 GET PROJECT BY ID
 //
 const getProjectById = asyncHandler(async (req, res) => {
     const { projectId } = req.params;
 
-    const project = await Project.findById(projectId);
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new ApiError(400, "Invalid projectId");
+    }
+
+    const member = await ProjectMember.exists({
+        project: projectId,
+        user: req.user._id,
+    });
+
+    if (!member) {
+        throw new ApiError(403, "Access denied");
+    }
+
+    const project = await Project.findById(projectId).lean();
 
     if (!project) {
         throw new ApiError(404, "Project not found");
@@ -95,7 +111,6 @@ const getProjectById = asyncHandler(async (req, res) => {
         new ApiResponse(200, project, "Project retrieved successfully")
     );
 });
-
 
 //
 // 📌 CREATE PROJECT
@@ -124,9 +139,8 @@ const createProject = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
-// 📌 UPDATE PROJECT (Admin only)
+// 📌 UPDATE PROJECT
 //
 const updateProject = asyncHandler(async (req, res) => {
     const { projectId } = req.params;
@@ -134,9 +148,13 @@ const updateProject = asyncHandler(async (req, res) => {
 
     await checkAdmin(projectId, req.user._id);
 
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description;
+
     const project = await Project.findByIdAndUpdate(
         projectId,
-        { name, description },
+        updateData,
         { new: true }
     );
 
@@ -149,9 +167,8 @@ const updateProject = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
-// 📌 DELETE PROJECT (Admin only)
+// 📌 DELETE PROJECT
 //
 const deleteProject = asyncHandler(async (req, res) => {
     const { projectId } = req.params;
@@ -164,6 +181,7 @@ const deleteProject = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Project not found");
     }
 
+    // cleanup related data
     await ProjectMember.deleteMany({ project: projectId });
 
     return res.status(200).json(
@@ -171,9 +189,8 @@ const deleteProject = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
-// 📌 ADD / UPDATE MEMBER (Admin only)
+// 📌 ADD / UPDATE MEMBER
 //
 const addMembersToProject = asyncHandler(async (req, res) => {
     const { email, role } = req.body;
@@ -185,7 +202,10 @@ const addMembersToProject = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid role");
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+        email: email.toLowerCase().trim(),
+    });
+
     if (!user) {
         throw new ApiError(404, "User not found");
     }
@@ -215,16 +235,14 @@ const addMembersToProject = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
 // 📌 GET PROJECT MEMBERS
 //
 const getProjectMembers = asyncHandler(async (req, res) => {
     const { projectId } = req.params;
 
-    const projectExists = await Project.exists({ _id: projectId });
-    if (!projectExists) {
-        throw new ApiError(404, "Project not found");
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new ApiError(400, "Invalid projectId");
     }
 
     const members = await ProjectMember.aggregate([
@@ -271,9 +289,8 @@ const getProjectMembers = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
-// 📌 UPDATE MEMBER ROLE (Admin only)
+// 📌 UPDATE MEMBER ROLE
 //
 const updateMemberRole = asyncHandler(async (req, res) => {
     const { projectId, userId } = req.params;
@@ -303,9 +320,8 @@ const updateMemberRole = asyncHandler(async (req, res) => {
     );
 });
 
-
 //
-// 📌 DELETE MEMBER (Admin only)
+// 📌 DELETE MEMBER
 //
 const deleteMember = asyncHandler(async (req, res) => {
     const { projectId, userId } = req.params;
@@ -325,7 +341,6 @@ const deleteMember = asyncHandler(async (req, res) => {
         new ApiResponse(200, {}, "Member removed successfully")
     );
 });
-
 
 export {
     createProject,

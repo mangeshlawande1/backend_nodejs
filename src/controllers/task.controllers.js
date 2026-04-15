@@ -7,50 +7,62 @@ import { asyncHandler } from "#utils/asyncHandler.js";
 import { UserRoleEnum } from "#utils/constants.js";
 import mongoose from "mongoose";
 
-
+//
+// 📌 GET ALL TASKS
+//
 const getTasks = asyncHandler(async (req, res) => {
-    // test
     const { projectId } = req.params;
-    const project = await Project.exists({ _id: projectId });
 
-    if (!project) {
-        throw new ApiError(404, "Project not found")
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new ApiError(400, "Invalid projectId");
     }
 
-    const tasks = await Task.find({
-        project: projectId,
-    }).populate("assignedTo", "avatar username fullname")
+    const project = await Project.exists({ _id: projectId });
+    if (!project) {
+        throw new ApiError(404, "Project not found");
+    }
 
-    return res
-        .status(200)
-        .json(new ApiResponse(
-            201, tasks, "tasks fetched successfully !!"
-        ));
+    const tasks = await Task.find({ project: projectId })
+        .populate("assignedTo", "avatar username fullname");
 
+    return res.status(200).json(
+        new ApiResponse(200, tasks, "Tasks fetched successfully")
+    );
 });
 
+//
+// 📌 CREATE TASK
+//
 const createTask = asyncHandler(async (req, res) => {
     const { title, description, assignedTo, status } = req.body;
     const { projectId } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new ApiError(400, "Invalid projectId");
+    }
+
     const project = await Project.exists({ _id: projectId });
     if (!project) {
-        throw new ApiError(404, "Project not found")
+        throw new ApiError(404, "Project not found");
     }
 
     if (!title || !title.trim()) {
         throw new ApiError(400, "Title is required");
     }
 
-    // mimetype :: extension of file like .pdf , .csv etc
-    const files = req.files || [];
-    const attachments = files.map((file) => {
-        return {
-            url: `${process.env.SERVER_URL}/images/${file.filename}`,
-            mimetype: file.mimetype,
+    // safer file handling
+    const files = Array.isArray(req.files)
+        ? req.files
+        : Object.values(req.files || {}).flat();
 
-        }
-    });
+    const baseUrl =
+        process.env.SERVER_URL ||
+        `${req.protocol}://${req.get("host")}`;
+
+    const attachments = files.map((file) => ({
+        url: `${baseUrl}/images/${file.filename}`,
+        mimetype: file.mimetype,
+    }));
 
     const task = await Task.create({
         title: title.trim(),
@@ -62,16 +74,23 @@ const createTask = asyncHandler(async (req, res) => {
         attachments,
     });
 
-    return res
-        .status(201)
-        .json(new ApiResponse(
-            201, task, "task created successfully !!"
-        ));
-
+    return res.status(201).json(
+        new ApiResponse(201, task, "Task created successfully")
+    );
 });
 
+//
+// 📌 GET TASK BY ID
+//
 const getTaskById = asyncHandler(async (req, res) => {
     const { projectId, taskId } = req.params;
+
+    if (
+        !mongoose.Types.ObjectId.isValid(projectId) ||
+        !mongoose.Types.ObjectId.isValid(taskId)
+    ) {
+        throw new ApiError(400, "Invalid IDs");
+    }
 
     const task = await Task.aggregate([
         {
@@ -81,7 +100,6 @@ const getTaskById = asyncHandler(async (req, res) => {
             },
         },
         {
-            //assignedTo
             $lookup: {
                 from: "users",
                 localField: "assignedTo",
@@ -93,20 +111,18 @@ const getTaskById = asyncHandler(async (req, res) => {
                             _id: 1,
                             username: 1,
                             fullname: 1,
-                            avatar: 1
-                        }
+                            avatar: 1,
+                        },
                     },
-
-                ]
-            }
+                ],
+            },
         },
         {
             $lookup: {
-                from: "subTasks",
+                from: "subtasks", // ⚠️ ensure this matches your DB collection name
                 localField: "_id",
                 foreignField: "task",
                 as: "subTasks",
-                // assigned some user 
                 pipeline: [
                     {
                         $lookup: {
@@ -114,7 +130,6 @@ const getTaskById = asyncHandler(async (req, res) => {
                             localField: "createdBy",
                             foreignField: "_id",
                             as: "createdBy",
-                            // what information you looking up for 
                             pipeline: [
                                 {
                                     $project: {
@@ -122,59 +137,72 @@ const getTaskById = asyncHandler(async (req, res) => {
                                         username: 1,
                                         fullname: 1,
                                         avatar: 1,
-                                    }
-                                }
-                            ]
-                        }
+                                    },
+                                },
+                            ],
+                        },
                     },
                     {
                         $addFields: {
                             createdBy: {
-                                $arrayElemAt: ["$createdBy", 0]
-                            }
-                        }
-                    }
-                ]
-            }
+                                $arrayElemAt: ["$createdBy", 0],
+                            },
+                        },
+                    },
+                ],
+            },
         },
         {
             $addFields: {
                 assignedTo: {
-                    $arrayElemAt: ["$assignedTo", 0]
-                }
-            }
-        }
-
+                    $arrayElemAt: ["$assignedTo", 0],
+                },
+            },
+        },
     ]);
 
     if (!task.length) {
-        throw new ApiError(404, "Task not found !")
+        throw new ApiError(404, "Task not found");
     }
 
-    return res
-        .status(200).json(new ApiResponse(200, task[0], "Tasks fetched Successfully !!"))
+    return res.status(200).json(
+        new ApiResponse(200, task[0], "Task fetched successfully")
+    );
 });
 
+//
+// 📌 UPDATE TASK
+//
 const updateTask = asyncHandler(async (req, res) => {
     const { projectId, taskId } = req.params;
     const { title, description, status, assignedTo } = req.body;
+
+    if (
+        !mongoose.Types.ObjectId.isValid(projectId) ||
+        !mongoose.Types.ObjectId.isValid(taskId)
+    ) {
+        throw new ApiError(400, "Invalid IDs");
+    }
 
     const task = await Task.findOne({
         _id: taskId,
         project: projectId,
     });
+
     if (!task) {
         throw new ApiError(404, "Task not found in this project");
     }
 
-    // Authorization (admin or creator)
+    // Authorization
     if (
-        task.assignedBy.toString() !== req.user._id.toString() &&
+        (!task.assignedBy ||
+            task.assignedBy.toString() !== req.user._id.toString()) &&
         req.user.role !== UserRoleEnum.ADMIN
     ) {
         throw new ApiError(403, "Not allowed to update this task");
     }
 
+    if (title !== undefined) task.title = title.trim();
     if (description !== undefined) task.description = description;
     if (status !== undefined) task.status = status;
     if (assignedTo !== undefined) task.assignedTo = assignedTo;
@@ -186,8 +214,18 @@ const updateTask = asyncHandler(async (req, res) => {
     );
 });
 
+//
+// 📌 DELETE TASK
+//
 const deleteTask = asyncHandler(async (req, res) => {
     const { projectId, taskId } = req.params;
+
+    if (
+        !mongoose.Types.ObjectId.isValid(projectId) ||
+        !mongoose.Types.ObjectId.isValid(taskId)
+    ) {
+        throw new ApiError(400, "Invalid IDs");
+    }
 
     const task = await Task.findOne({
         _id: taskId,
@@ -199,7 +237,8 @@ const deleteTask = asyncHandler(async (req, res) => {
     }
 
     if (
-        task.assignedBy.toString() !== req.user._id.toString() &&
+        (!task.assignedBy ||
+            task.assignedBy.toString() !== req.user._id.toString()) &&
         req.user.role !== UserRoleEnum.ADMIN
     ) {
         throw new ApiError(403, "Not allowed to delete this task");
@@ -212,7 +251,6 @@ const deleteTask = asyncHandler(async (req, res) => {
         new ApiResponse(200, {}, "Task deleted successfully")
     );
 });
-
 
 export {
     createTask,
