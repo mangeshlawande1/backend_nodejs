@@ -1,7 +1,7 @@
-import mongoose, { Schema } from "mongoose";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import crypto from "crypto";
+import mongoose, { Schema } from 'mongoose';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const userSchema = new Schema(
   {
@@ -11,8 +11,8 @@ const userSchema = new Schema(
         localPath: String,
       },
       default: {
-        url: "https://placehold.co/150x150",
-        localPath: "",
+        url: 'https://placehold.co/150x150',
+        localPath: '',
       },
     },
     username: {
@@ -36,7 +36,7 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required !!"],
+      required: [true, 'Password is required !!'],
     },
     isEmailVerified: {
       type: Boolean,
@@ -61,11 +61,10 @@ const userSchema = new Schema(
   { timestamps: true },
 );
 
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
 
   this.password = await bcrypt.hash(this.password, 10);
-
 });
 
 userSchema.methods.isPasswordCorrect = async function (password) {
@@ -103,15 +102,15 @@ userSchema.methods.generateRefreshToken = function () {
 
 // how we can generate a token without data
 userSchema.methods.generateTemporaryToken = function () {
-  const unHashedToken = crypto.randomBytes(20).toString("hex");
+  const unHashedToken = crypto.randomBytes(20).toString('hex');
 
   const hashedToken = crypto
-    .createHash("sha256")
+    .createHash('sha256')
     .update(unHashedToken)
-    .digest("hex");
+    .digest('hex');
   const tokenExpiry = Date.now() + 20 * 60 * 1000; // 20 min
 
   return { unHashedToken, hashedToken, tokenExpiry };
 };
 
-export const User = mongoose.model("User", userSchema);
+export const User = mongoose.model('User', userSchema);

@@ -1,45 +1,44 @@
-import { AvailableTaskStatues, TaskStatusEnum } from "#utils/constants.js";
-import mongoose, { Schema } from "mongoose";
+import { AvailableTaskStatues, TaskStatusEnum } from '#utils/constants.js';
+import mongoose, { Schema } from 'mongoose';
 
-
-const taskSchema = new Schema({
+const taskSchema = new Schema(
+  {
     title: {
-        type: String,
-        required: true,
-        trim: true,
+      type: String,
+      required: true,
+      trim: true,
     },
     description: String,
     project: {
-        type: Schema.Types.ObjectId,
-        ref: "Project",
-        required: true,
+      type: Schema.Types.ObjectId,
+      ref: 'Project',
+      required: true,
     },
     assignedTo: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
+      type: Schema.Types.ObjectId,
+      ref: 'User',
     },
     assignedBy: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
+      type: Schema.Types.ObjectId,
+      ref: 'User',
     },
     status: {
-        type: String,
-        enum: AvailableTaskStatues,
-        default: TaskStatusEnum.TODO,
-
+      type: String,
+      enum: AvailableTaskStatues,
+      default: TaskStatusEnum.TODO,
     },
     attachments: {
-        type: [{
-            url: String,
-            mimeType: String,
-            size: Number,
-        }],
-        default: [],
-    }
+      type: [
+        {
+          url: String,
+          mimeType: String,
+          size: Number,
+        },
+      ],
+      default: [],
+    },
+  },
+  { timestamps: true },
+);
 
-}, { timestamps: true });
-
-
-
-export const Task = mongoose.model("Task", taskSchema);
-
+export const Task = mongoose.model('Task', taskSchema);

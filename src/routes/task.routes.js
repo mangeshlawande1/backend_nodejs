@@ -1,31 +1,29 @@
-import express from "express";
+import express from 'express';
 import {
-    createTask,
-    updateTask,
-    deleteTask,
-    getTasks,
-    getTaskById
-} from "#controllers/task.controllers.js";
+  createTask,
+  updateTask,
+  deleteTask,
+  getTasks,
+  getTaskById,
+} from '#controllers/task.controllers.js';
 
 import {
-    createSubTask,
-    updateSubTask,
-    deleteSubTask
-} from "#controllers/subtask.controllers.js";
+  createSubTask,
+  updateSubTask,
+  deleteSubTask,
+} from '#controllers/subtask.controllers.js';
 
-import { validate } from "#middlewares/validator.middleware.js";
-import { verifyJWT, allowAdmin } from "#middlewares/auth.middleware.js";
+import { validate } from '#middlewares/validator.middleware.js';
+import { verifyJWT, allowAdmin } from '#middlewares/auth.middleware.js';
 import {
-    
-    createTaskValidator,
-    updateTaskValidator,
-    getTaskValidator,
-    getTasksValidator,
-    createSubTaskValidator,
-    updateSubTaskValidator,
-    deleteSubTaskValidator
-
-} from "#validators/index.js";
+  createTaskValidator,
+  updateTaskValidator,
+  getTaskValidator,
+  getTasksValidator,
+  createSubTaskValidator,
+  updateSubTaskValidator,
+  deleteSubTaskValidator,
+} from '#validators/index.js';
 
 const router = express.Router();
 
@@ -36,48 +34,37 @@ router.use(verifyJWT);
 //
 
 // 📌 Get all tasks
-router.get(
-    "/:projectId",
-    getTasksValidator(),
-    validate,
-    getTasks
-);
+router.get('/:projectId', getTasksValidator(), validate, getTasks);
 
 // 📌 Create task
 router.post(
-    "/:projectId",
-    allowAdmin,
-    createTaskValidator(),
-    validate,
-    createTask
+  '/:projectId',
+  allowAdmin,
+  createTaskValidator(),
+  validate,
+  createTask,
 );
 
 // 📌 Get single task
-router.get(
-    "/:projectId/t/:taskId",
-    getTaskValidator(),
-    validate,
-    getTaskById
-);
+router.get('/:projectId/t/:taskId', getTaskValidator(), validate, getTaskById);
 
 // 📌 Update task
 router.put(
-    "/:projectId/t/:taskId",
-    allowAdmin,
-    updateTaskValidator(),
-    validate,
-    updateTask
+  '/:projectId/t/:taskId',
+  allowAdmin,
+  updateTaskValidator(),
+  validate,
+  updateTask,
 );
 
 // 📌 Delete task
 router.delete(
-    "/:projectId/t/:taskId",
-    allowAdmin,
-    getTaskValidator(),
-    validate,
-    deleteTask
+  '/:projectId/t/:taskId',
+  allowAdmin,
+  getTaskValidator(),
+  validate,
+  deleteTask,
 );
-
 
 //
 // 🔹 SUBTASK ROUTES
@@ -85,28 +72,28 @@ router.delete(
 
 // 📌 Create subtask
 router.post(
-    "/:projectId/t/:taskId/subtasks",
-    allowAdmin,
-    createSubTaskValidator(),
-    validate,
-    createSubTask
+  '/:projectId/t/:taskId/subtasks',
+  allowAdmin,
+  createSubTaskValidator(),
+  validate,
+  createSubTask,
 );
 
 // 📌 Update subtask
 router.put(
-    "/:projectId/st/:subTaskId",
-    updateSubTaskValidator(),
-    validate,
-    updateSubTask
+  '/:projectId/st/:subTaskId',
+  updateSubTaskValidator(),
+  validate,
+  updateSubTask,
 );
 
 // 📌 Delete subtask
 router.delete(
-    "/:projectId/st/:subTaskId",
-    allowAdmin,
-    deleteSubTaskValidator(),
-    validate,
-    deleteSubTask
+  '/:projectId/st/:subTaskId',
+  allowAdmin,
+  deleteSubTaskValidator(),
+  validate,
+  deleteSubTask,
 );
 
 export default router;
