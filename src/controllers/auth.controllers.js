@@ -33,13 +33,13 @@ const registerUser = asyncHandler(async (req, res) => {
 
   try {
     const existedUser = await User.findOne({
-      $or: [{ username, email }],
+      $or: [{ username }, { email }]
     });
 
     if (existedUser) {
       throw new ApiError(
         409,
-        'User With Email or Username already exists. ',
+        'User With Email or Username already exists.',
         [],
       );
     }
@@ -91,7 +91,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 });
 
-//cookie-parser
+//cookie-parser : a middleware that connect express and cookie 
 const login = asyncHandler(async (req, res) => {
   const { email, username, password } = req.body;
 
@@ -191,7 +191,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
 
   try {
     const hashedToken = crypto
-      .crateHash('sha256')
+      .createHash('sha256')
       .update(verificationToken)
       .digest('hex');
 
@@ -357,7 +357,7 @@ const resetForgotPassword = asyncHandler(async (req, res) => {
 
   try {
     const hashedToken = crypto
-      .crateHash('sha256')
+      .createHash('sha256')
       .update(resetToken)
       .digest('hex');
 
