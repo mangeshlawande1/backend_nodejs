@@ -1,108 +1,137 @@
-import Mailgen from 'mailgen';
-import nodemailer from 'nodemailer';
-import 'dotenv/config';
+import Mailgen from "mailgen";
+import nodemailer from "nodemailer";
+import "dotenv/config";
 
-/**
- * prepare the constent 
- * send an email 
- * test email   
-  send mail is always async 
+/* =========================================================
+   SEND EMAIL
+========================================================= */
 
-
- */
 const sendEmail = async (options) => {
-  const mailGenerator = new Mailgen({
-    theme: 'default',
-    product: {
-      name: 'Task Manager',
-      link: 'https://taskmanagelink.com',
-    },
-  });
-  // preapare a email
-  const emailTextual = mailGenerator.generatePlaintext(options.mailgenContent);
-  const emailHtml = mailGenerator.generate(options.mailgenContent);
+  const { email, subject, mailgenContent } = options;
 
-  // send an email
-
-  const transporter = nodemailer.createTransport({
-    host: process.env.MAILTRAP_SMTP_HOST,
-    port: process.env.MAILTRAP_SMTP_PORT,
-    auth: {
-      user: process.env.MAILTRAP_SMTP_USER,
-      pass: process.env.MAILTRAP_SMTP_PASS,
-    },
-  });
-
-  const mail = {
-    from: 'mail.taskmanager@example.com',
-    to: options.email,
-    subject: options.subject,
-    text: emailTextual,
-    html: emailHtml,
-  };
+  if (!email || !subject || !mailgenContent) {
+    throw new Error(
+      "Email, subject and mail content are required"
+    );
+  }
 
   try {
-    await transporter.sendMail(mail);
-  } catch (error) {
-    console.error(
-      'Email Service Failed silently, Make sure that you provided your mailtrap credentials in the .env  file.',
+    const mailGenerator = new Mailgen({
+      theme: "default",
+      product: {
+        name: "Task Manager",
+        link: "https://taskmanager.com",
+      },
+    });
+
+    // Generate email body
+    const emailText = mailGenerator.generatePlaintext(
+      mailgenContent
     );
-    console.error('Error: ', error);
+
+    const emailHtml = mailGenerator.generate(
+      mailgenContent
+    );
+
+    // Create transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.MAILTRAP_SMTP_HOST,
+      port: Number(process.env.MAILTRAP_SMTP_PORT),
+      secure: false,
+      auth: {
+        user: process.env.MAILTRAP_SMTP_USER,
+        pass: process.env.MAILTRAP_SMTP_PASS,
+      },
+    });
+
+    // Email object
+    const mail = {
+      from: process.env.MAIL_FROM,
+      to: email,
+      subject,
+      text: emailText,
+      html: emailHtml,
+    };
+
+    // Send mail
+    const response = await transporter.sendMail(mail);
+
+    return response;
+  } catch (error) {
+    console.error("Email service error:", error);
+
+    throw new Error(
+      error?.message || "Failed to send email"
+    );
   }
 };
 
-/**
- * generate a content for mail 
- // create a mail 
- it will accept username , verifivation_url
- return an object
- body : name,intro , action, outro
+/* =========================================================
+   EMAIL VERIFICATION TEMPLATE
+========================================================= */
 
- */
-const emailVerificationMailgenContent = (username, verificationUrl) => {
+const emailVerificationMailgenContent = (
+  username,
+  verificationUrl
+) => {
   return {
     body: {
       name: username,
-      intro: 'Welcome to our app, we are excited to have you on board.',
+
+      intro:
+        "Welcome to Task Manager! We're excited to have you onboard.",
+
       action: {
-        instructions: 'To Verify your Email , Please Click on following button',
+        instructions:
+          "To verify your email, please click the button below:",
+
         button: {
-          color: '#22BC66',
-          text: 'verify your Email',
+          color: "#22BC66",
+          text: "Verify Email",
           link: verificationUrl,
         },
       },
-      // bottompart
+
       outro:
-        'Need Help, Or have Questions? just reply to this email, we\'d love to help.',
+        "Need help or have questions? Reply to this email — we'd love to help.",
     },
   };
 };
 
-/**
- * forgotpassword
- * same
- */
+/* =========================================================
+   FORGOT PASSWORD TEMPLATE
+========================================================= */
 
-const forgotPasswordMailgenContent = (username, passwordResetUrl) => {
+const forgotPasswordMailgenContent = (
+  username,
+  passwordResetUrl
+) => {
   return {
     body: {
       name: username,
+
+      intro:
+        "We received a request to reset your password.",
+
       action: {
-        intro:
-          'We got a request to reset password of your account to reset your password click on the following button or link ',
-        button: '#9511a9',
-        text: 'Reset Password ',
-        link: passwordResetUrl,
+        instructions:
+          "Click the button below to reset your password:",
+
+        button: {
+          color: "#9511A9",
+          text: "Reset Password",
+          link: passwordResetUrl,
+        },
       },
+
       outro:
-        'Need Help, Or have Questions? just reply to this email, we\'d love to help.',
+        "If you did not request this, please ignore this email.",
     },
   };
 };
 
 export {
+  sendEmail,
   emailVerificationMailgenContent,
   forgotPasswordMailgenContent,
-  sendEmail,
 };
