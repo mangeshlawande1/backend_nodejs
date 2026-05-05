@@ -1,69 +1,106 @@
-import { ProjectMember } from '#models/projectmember.models.js';
-import { User } from '#models/user.models.js';
-import { ApiError } from '#utils/ApiError.js';
-import { asyncHandler } from '#utils/asyncHandler.js';
-import { UserRoleEnum } from '#utils/constants.js';
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
+
+import { ProjectMember } from "#models/projectmember.models.js";
+import { User } from "#models/user.models.js";
+
+import { ApiError } from "#utils/ApiError.js";
+import { asyncHandler } from "#utils/asyncHandler.js";
+import { UserRoleEnum } from "#utils/constants.js";
+
+/* =========================================================
+   VERIFY JWT
+========================================================= */
 
 export const verifyJWT = asyncHandler(async (req, res, next) => {
-  // req.cookies?.accessToken
+  const authHeader = req.header("Authorization");
+
   const token =
-        req.cookies?.accessToken ||
-        req.header('Authorization')?.replace('Bearer ', '');
+    req.cookies?.accessToken ||
+    (authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null);
 
   if (!token) {
-    throw new ApiError(401, 'Unauthorized request');
+    throw new ApiError(401, "Unauthorized request");
   }
 
   try {
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const decodedToken = jwt.verify(
+      token,
+      process.env.ACCESS_TOKEN_SECRET
+    );
 
     const user = await User.findById(decodedToken?._id).select(
-      '-password -refreshToken -emailVerificationToken -emailVerificationExpiry',
+      "-password -refreshToken -emailVerificationToken -emailVerificationExpiry"
     );
 
     if (!user) {
-      throw new ApiError(401, 'Invalid access token');
+      throw new ApiError(401, "Invalid access token");
     }
 
     req.user = user;
+
     next();
   } catch (error) {
-    throw new ApiError(508, error || 'Invalid Access Token');
+    throw new ApiError(
+      401,
+      error?.message || "Invalid or expired access token"
+    );
   }
 });
 
+/* =========================================================
+   ADMIN ONLY
+========================================================= */
+
 export const allowAdmin = (req, _, next) => {
-  if (req.user.role !== UserRoleEnum.ADMIN) {
-    throw new ApiError(403, 'Admin only access');
+  if (
+    !req.user ||
+    req.user.role !== UserRoleEnum.ADMIN
+  ) {
+    throw new ApiError(403, "Admin access only");
   }
   next();
 };
 
-export const validateProjectPermission = (roles = []) => {
+/* =========================================================
+   PROJECT ROLE AUTHORIZATION
+========================================================= */
+
+export const validateProjectPermission = (
+  roles = []
+) => {
   return asyncHandler(async (req, _, next) => {
     const { projectId } = req.params;
 
     if (!projectId) {
-      throw new ApiError(400, 'Project Id not Found !!');
+      throw new ApiError(
+        400,
+        "Project ID is required"
+      );
     }
 
-    const project = await ProjectMember.findOne({
-      project: projectId,
-      user: req.user._id,
-    });
+    const membership =
+      await ProjectMember.findOne({
+        project: projectId,
+        user: req.user._id,
+      });
 
-    if (!project) {
-      throw new ApiError(400, 'Project not Found !!');
+    if (!membership) {
+      throw new ApiError(
+        404,
+        "Project membership not found"
+      );
     }
 
-    const givenRole = project?.role;
-    req.user.role = givenRole;
+    const projectRole = membership.role;
 
-    if (!roles.includes(givenRole)) {
+    req.projectRole = projectRole;
+
+    if (!roles.includes(projectRole)) {
       throw new ApiError(
         403,
-        'You do not have Permission to perform this action !',
+        "You do not have permission to perform this action"
       );
     }
 
