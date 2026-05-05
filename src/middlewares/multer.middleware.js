@@ -1,17 +1,70 @@
-import multer from 'multer';
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+
+const uploadPath = path.resolve("public/images");
+
+/* =========================================================
+   CREATE DIRECTORY IF NOT EXISTS
+========================================================= */
+
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath, { recursive: true });
+}
+
+/* =========================================================
+   STORAGE CONFIG
+========================================================= */
 
 const storage = multer.diskStorage({
-  destination (req, file, cb) {
-    cb(null, './public/images');
+  destination(req, file, cb) {
+    cb(null, uploadPath);
   },
-  filename (req, file, cb) {
-    cb(null, `${Date.now()}-${file.originalname}`);
+
+  filename(req, file, cb) {
+    const ext = path.extname(file.originalname);
+
+    const uniqueName = `${crypto.randomUUID()}${ext}`;
+
+    cb(null, uniqueName);
   },
 });
 
+/* =========================================================
+   FILE FILTER
+========================================================= */
+
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/jpg",
+  ];
+
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return cb(
+      new Error(
+        "Only jpeg, jpg, png and webp images are allowed"
+      ),
+      false
+    );
+  }
+
+  cb(null, true);
+};
+
+/* =========================================================
+   MULTER INSTANCE
+========================================================= */
+
 export const upload = multer({
   storage,
+
+  fileFilter,
+
   limits: {
-    fileSize: 1 * 1000 * 1000,
+    fileSize: 1 * 1024 * 1024, // 1MB
   },
 });
