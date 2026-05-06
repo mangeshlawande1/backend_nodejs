@@ -31,19 +31,21 @@
     "#routes/*": "./src/routes/*"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format:check": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test":"NODE"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "devDependencies": {
-    "prettier": "3.8.1"
+    "prettier": "3.8.1",
+    "supertest": "^7.2.2"
   }
 }
