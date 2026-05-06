@@ -1,43 +1,66 @@
-import { ProjectNote } from '#models/note.models.js';
+import mongoose from 'mongoose';
+
 import { Project } from '#models/project.models.js';
+import { ProjectNote } from '#models/note.models.js';
+
 import { ApiError } from '#utils/ApiError.js';
 import { ApiResponse } from '#utils/ApiResponse.js';
 import { asyncHandler } from '#utils/asyncHandler.js';
 import { UserRoleEnum } from '#utils/constants.js';
 
+/* =========================================================
+   CREATE PROJECT NOTE
+========================================================= */
+
 const createProjectNote = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
   const { content } = req.body;
 
-  const project = await Project.exists({ _id: projectId });
-
-  if (!project) {
-    throw new ApiError(404, 'Project Not Found !!');
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    throw new ApiError(400, 'Invalid project id');
   }
+
   if (!content || !content.trim()) {
-    throw new ApiError(400, 'content is required !!');
+    throw new ApiError(400, 'Content is required');
   }
 
-  const projectNote = await ProjectNote.create({
-    project: projectId,
-    createdBy: req.user._id,
-    content,
+  const project = await Project.exists({
+    _id: projectId,
   });
 
-  if (!projectNote) {
-    throw new ApiError(400, 'Error occured while creating project note ! ');
+  if (!project) {
+    throw new ApiError(404, 'Project not found');
   }
 
-  return res
-    .status(201)
-    .json(
-      new ApiResponse(201, projectNote, 'Project note created successfully'),
-    );
+  const note = await ProjectNote.create({
+    project: projectId,
+    createdBy: req.user._id,
+    content: content.trim(),
+  });
+
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      note,
+      'Project note created successfully',
+    ),
+  );
 });
+
+/* =========================================================
+   UPDATE PROJECT NOTE
+========================================================= */
 
 const updateProjectNote = asyncHandler(async (req, res) => {
   const { projectId, noteId } = req.params;
-  const { content } = req.body;
+  const { content, isPinned } = req.body;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(projectId) ||
+    !mongoose.Types.ObjectId.isValid(noteId)
+  ) {
+    throw new ApiError(400, 'Invalid ids');
+  }
 
   const note = await ProjectNote.findOne({
     _id: noteId,
@@ -45,77 +68,155 @@ const updateProjectNote = asyncHandler(async (req, res) => {
   });
 
   if (!note) {
-    throw new ApiError(404, 'Note not found in this project!');
+    throw new ApiError(
+      404,
+      'Project note not found',
+    );
   }
 
-  if (!content || !content.trim()) {
-    throw new ApiError(400, 'Content is required!');
+  // authorization
+  const isOwner =
+    note.createdBy.toString() ===
+    req.user._id.toString();
+
+  const isAdmin =
+    req.user.role === UserRoleEnum.ADMIN;
+
+  if (!isOwner && !isAdmin) {
+    throw new ApiError(
+      403,
+      'You are not allowed to update this note',
+    );
   }
 
-  // Authorization
-  if (
-    note.createdBy.toString() !== req.user._id.toString() &&
-    req.user.role !== UserRoleEnum.ADMIN
-  ) {
-    throw new ApiError(403, 'Not allowed to update this note!');
+  if (content !== undefined) {
+    if (!content.trim()) {
+      throw new ApiError(
+        400,
+        'Content cannot be empty',
+      );
+    }
+
+    note.content = content.trim();
   }
 
-  note.content = content;
+  if (typeof isPinned === 'boolean') {
+    note.isPinned = isPinned;
+  }
+
   await note.save();
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, note, 'Note updated successfully'));
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      note,
+      'Project note updated successfully',
+    ),
+  );
 });
+
+/* =========================================================
+   DELETE PROJECT NOTE
+========================================================= */
 
 const deleteProjectNote = asyncHandler(async (req, res) => {
   const { projectId, noteId } = req.params;
 
+  if (
+    !mongoose.Types.ObjectId.isValid(projectId) ||
+    !mongoose.Types.ObjectId.isValid(noteId)
+  ) {
+    throw new ApiError(400, 'Invalid ids');
+  }
+
   const note = await ProjectNote.findOne({
     _id: noteId,
     project: projectId,
   });
 
   if (!note) {
-    throw new ApiError(404, 'Note not found in this project!');
+    throw new ApiError(
+      404,
+      'Project note not found',
+    );
   }
 
-  // Authorization
-  if (
-    note.createdBy.toString() !== req.user._id.toString() &&
-    req.user.role !== UserRoleEnum.ADMIN
-  ) {
-    throw new ApiError(403, 'Not allowed to delete this note!');
+  // authorization
+  const isOwner =
+    note.createdBy.toString() ===
+    req.user._id.toString();
+
+  const isAdmin =
+    req.user.role === UserRoleEnum.ADMIN;
+
+  if (!isOwner && !isAdmin) {
+    throw new ApiError(
+      403,
+      'You are not allowed to delete this note',
+    );
   }
 
   await note.deleteOne();
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, 'Note deleted successfully'));
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {},
+      'Project note deleted successfully',
+    ),
+  );
 });
 
+/* =========================================================
+   GET ALL PROJECT NOTES
+========================================================= */
+
 const getProjectNotes = asyncHandler(async (req, res) => {
-  //📖 3. Get All Notes by Project
   const { projectId } = req.params;
-  const { page = 1, limit = 10 } = req.query;
 
-  const pageNumber = Math.max(Number(page) || 1, 1);
-  const limitNumber = Math.min(Number(limit) || 10, 50);
+  const page = Math.max(
+    parseInt(req.query.page) || 1,
+    1,
+  );
 
-  const skip = (pageNumber - 1) * limitNumber;
+  const limit = Math.min(
+    parseInt(req.query.limit) || 10,
+    50,
+  );
+
+  if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    throw new ApiError(400, 'Invalid project id');
+  }
+
+  const project = await Project.exists({
+    _id: projectId,
+  });
+
+  if (!project) {
+    throw new ApiError(404, 'Project not found');
+  }
+
+  const skip = (page - 1) * limit;
 
   const notes = await ProjectNote.find({
     project: projectId,
   })
-    .populate('createdBy', 'name email')
+    .populate(
+      'createdBy',
+      'username fullname email avatar',
+    )
+    .sort({
+      isPinned: -1,
+      createdAt: -1,
+    })
     .skip(skip)
-    .limit(limitNumber)
-    .sort({ createdAt: -1 }); // optional (latest first)
+    .limit(limit)
+    .lean();
 
-  const totalNotes = await ProjectNote.countDocuments({
-    project: projectId,
-  });
+  const totalNotes =
+    await ProjectNote.countDocuments({
+      project: projectId,
+    });
 
   return res.status(200).json(
     new ApiResponse(
@@ -124,9 +225,11 @@ const getProjectNotes = asyncHandler(async (req, res) => {
         notes,
         pagination: {
           total: totalNotes,
-          page: pageNumber,
-          limit: limitNumber,
-          totalPages: Math.ceil(totalNotes / limitNumber),
+          page,
+          limit,
+          totalPages: Math.ceil(
+            totalNotes / limit,
+          ),
         },
       },
       'Project notes fetched successfully',
@@ -134,23 +237,48 @@ const getProjectNotes = asyncHandler(async (req, res) => {
   );
 });
 
-const getProjectNotesById = asyncHandler(async (req, res) => {
+/* =========================================================
+   GET PROJECT NOTE BY ID
+========================================================= */
+
+const getProjectNoteById = asyncHandler(async (req, res) => {
   const { projectId, noteId } = req.params;
+
+  if (
+    !mongoose.Types.ObjectId.isValid(projectId) ||
+    !mongoose.Types.ObjectId.isValid(noteId)
+  ) {
+    throw new ApiError(400, 'Invalid ids');
+  }
 
   const note = await ProjectNote.findOne({
     _id: noteId,
     project: projectId,
   })
-    .populate('createdBy', 'name email')
-    .populate('project', 'name');
+    .populate(
+      'createdBy',
+      'username fullname email avatar',
+    )
+    .populate(
+      'project',
+      'name description',
+    )
+    .lean();
 
   if (!note) {
-    throw new ApiError(404, 'Note not found in this project!');
+    throw new ApiError(
+      404,
+      'Project note not found',
+    );
   }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, note, 'Note fetched successfully'));
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      note,
+      'Project note fetched successfully',
+    ),
+  );
 });
 
 export {
@@ -158,5 +286,5 @@ export {
   updateProjectNote,
   deleteProjectNote,
   getProjectNotes,
-  getProjectNotesById,
+  getProjectNoteById,
 };
