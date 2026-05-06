@@ -1,28 +1,75 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
 const subTaskSchema = new Schema(
   {
     title: {
       type: String,
-      required: true,
+      required: [true, "Subtask title is required"],
       trim: true,
+      minlength: 1,
+      maxlength: 200,
     },
+
     task: {
       type: Schema.Types.ObjectId,
-      ref: 'Task',
+      ref: "Task",
       required: true,
+      index: true,
     },
+
     isCompleted: {
       type: Boolean,
       default: false,
+      index: true,
     },
+
     createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
+      index: true,
+    },
+
+    completedAt: {
+      type: Date,
+      default: null,
     },
   },
-  { timestamps: true },
+
+  {
+    timestamps: true,
+  }
 );
 
-export const SubTask = mongoose.model('SubTask', subTaskSchema);
+/* =========================================================
+   INDEXES
+========================================================= */
+
+subTaskSchema.index({
+  task: 1,
+  createdAt: -1,
+});
+
+subTaskSchema.index({
+  task: 1,
+  isCompleted: 1,
+});
+
+/* =========================================================
+   AUTO HANDLE completedAt
+========================================================= */
+
+subTaskSchema.pre("save", function (next) {
+  if (this.isModified("isCompleted")) {
+    this.completedAt = this.isCompleted
+      ? new Date()
+      : null;
+  }
+
+  next();
+});
+
+export const SubTask = mongoose.model(
+  "SubTask",
+  subTaskSchema
+);
