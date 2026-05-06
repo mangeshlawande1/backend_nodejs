@@ -1,256 +1,681 @@
-import { Project } from '#models/project.models.js';
-import { SubTask } from '#models/subtask.models.js';
-import { Task } from '#models/task.models.js';
-import { ApiError } from '#utils/ApiError.js';
-import { ApiResponse } from '#utils/ApiResponse.js';
-import { asyncHandler } from '#utils/asyncHandler.js';
-import { UserRoleEnum } from '#utils/constants.js';
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
-//
-// 📌 GET ALL TASKS
-//
-const getTasks = asyncHandler(async (req, res) => {
-  const { projectId } = req.params;
+import { Task } from "#models/task.models.js";
+import { Project } from "#models/project.models.js";
+import { SubTask } from "#models/subtask.models.js";
+import { User } from "#models/user.models.js";
+import { ProjectMember } from "#models/projectmember.models.js";
 
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, 'Invalid projectId');
-  }
+import { ApiError } from "#utils/ApiError.js";
+import { ApiResponse } from "#utils/ApiResponse.js";
+import { asyncHandler } from "#utils/asyncHandler.js";
 
-  const project = await Project.exists({ _id: projectId });
-  if (!project) {
-    throw new ApiError(404, 'Project not found');
-  }
+import {
+  AvailableTaskStatuses,
+  TaskStatusEnum,
+  UserRoleEnum,
+} from "#utils/constants.js";
 
-  const tasks = await Task.find({ project: projectId }).populate(
-    'assignedTo',
-    'avatar username fullname',
-  );
+/* =========================================================
+   HELPERS
+========================================================= */
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, tasks, 'Tasks fetched successfully'));
-});
-
-//
-// 📌 CREATE TASK
-//
-const createTask = asyncHandler(async (req, res) => {
-  const { title, description, assignedTo, status } = req.body;
-  const { projectId } = req.params;
-
-  if (!mongoose.Types.ObjectId.isValid(projectId)) {
-    throw new ApiError(400, 'Invalid projectId');
-  }
-
-  const project = await Project.exists({ _id: projectId });
-  if (!project) {
-    throw new ApiError(404, 'Project not found');
-  }
-
-  if (!title || !title.trim()) {
-    throw new ApiError(400, 'Title is required');
-  }
-
-  // safer file handling
-  const files = Array.isArray(req.files)
-    ? req.files
-    : Object.values(req.files || {}).flat();
-
-  const baseUrl =
-    process.env.SERVER_URL || `${req.protocol}://${req.get('host')}`;
-
-  const attachments = files.map((file) => ({
-    url: `${baseUrl}/images/${file.filename}`,
-    mimetype: file.mimetype,
-  }));
-
-  const task = await Task.create({
-    title: title.trim(),
-    description,
-    project: projectId,
-    assignedTo: assignedTo || undefined,
-    status,
-    assignedBy: req.user._id,
-    attachments,
-  });
-
-  return res
-    .status(201)
-    .json(new ApiResponse(201, task, 'Task created successfully'));
-});
-
-//
-// 📌 GET TASK BY ID
-//
-const getTaskById = asyncHandler(async (req, res) => {
-  const { projectId, taskId } = req.params;
-
+const validateObjectId = (
+  id,
+  field = "Id"
+) => {
   if (
-    !mongoose.Types.ObjectId.isValid(projectId) ||
-    !mongoose.Types.ObjectId.isValid(taskId)
+    !mongoose.Types.ObjectId.isValid(id)
   ) {
-    throw new ApiError(400, 'Invalid IDs');
+    throw new ApiError(
+      400,
+      `Invalid ${field}`
+    );
   }
+};
 
-  const task = await Task.aggregate([
-    {
-      $match: {
-        _id: new mongoose.Types.ObjectId(taskId),
-        project: new mongoose.Types.ObjectId(projectId),
-      },
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'assignedTo',
-        foreignField: '_id',
-        as: 'assignedTo',
-        pipeline: [
-          {
-            $project: {
-              _id: 1,
-              username: 1,
-              fullname: 1,
-              avatar: 1,
-            },
+const validateProjectAccess =
+  async (projectId, userId) => {
+    const member =
+      await ProjectMember.exists({
+        project: projectId,
+        user: userId,
+      });
+
+    if (!member) {
+      throw new ApiError(
+        403,
+        "Access denied"
+      );
+    }
+  };
+
+const validateAssignedUser =
+  async (projectId, assignedTo) => {
+    if (!assignedTo) return;
+
+    validateObjectId(
+      assignedTo,
+      "assignedTo"
+    );
+
+    const userExists =
+      await User.exists({
+        _id: assignedTo,
+      });
+
+    if (!userExists) {
+      throw new ApiError(
+        404,
+        "Assigned user not found"
+      );
+    }
+
+    const isProjectMember =
+      await ProjectMember.exists({
+        project: projectId,
+        user: assignedTo,
+      });
+
+    if (!isProjectMember) {
+      throw new ApiError(
+        400,
+        "Assigned user is not a project member"
+      );
+    }
+  };
+
+/* =========================================================
+   GET ALL TASKS
+========================================================= */
+
+const getTasks = asyncHandler(
+  async (req, res) => {
+    const { projectId } =
+      req.params;
+
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    const project =
+      await Project.exists({
+        _id: projectId,
+      });
+
+    if (!project) {
+      throw new ApiError(
+        404,
+        "Project not found"
+      );
+    }
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    const tasks = await Task.find({
+      project: projectId,
+    })
+      .populate(
+        "assignedTo",
+        "avatar username fullName email"
+      )
+      .populate(
+        "assignedBy",
+        "avatar username fullName"
+      )
+      .sort({
+        createdAt: -1,
+      });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        tasks,
+        "Tasks fetched successfully"
+      )
+    );
+  }
+);
+
+/* =========================================================
+   CREATE TASK
+========================================================= */
+
+const createTask = asyncHandler(
+  async (req, res) => {
+    const { projectId } =
+      req.params;
+
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    const {
+      title,
+      description,
+      assignedTo,
+      status,
+      priority,
+      dueDate,
+    } = req.body;
+
+    const project =
+      await Project.exists({
+        _id: projectId,
+      });
+
+    if (!project) {
+      throw new ApiError(
+        404,
+        "Project not found"
+      );
+    }
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    if (!title || !title.trim()) {
+      throw new ApiError(
+        400,
+        "Task title is required"
+      );
+    }
+
+    if (
+      status &&
+      !AvailableTaskStatuses.includes(
+        status
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid task status"
+      );
+    }
+
+    await validateAssignedUser(
+      projectId,
+      assignedTo
+    );
+
+    const files = Array.isArray(
+      req.files
+    )
+      ? req.files
+      : Object.values(
+        req.files || {}
+      ).flat();
+
+    const baseUrl =
+      process.env.SERVER_URL ||
+      `${req.protocol}://${req.get(
+        "host"
+      )}`;
+
+    const attachments = files.map(
+      (file) => ({
+        url: `${baseUrl}/images/${file.filename}`,
+        localPath: file.path,
+        mimeType: file.mimetype,
+        size: file.size,
+      })
+    );
+
+    const task = await Task.create({
+      title: title.trim(),
+
+      description:
+        description?.trim() || "",
+
+      project: projectId,
+
+      assignedTo:
+        assignedTo || undefined,
+
+      assignedBy: req.user._id,
+
+      status:
+        status ||
+        TaskStatusEnum.TODO,
+
+      priority,
+
+      dueDate,
+
+      attachments,
+    });
+
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        task,
+        "Task created successfully"
+      )
+    );
+  }
+);
+
+/* =========================================================
+   GET TASK BY ID
+========================================================= */
+
+const getTaskById = asyncHandler(
+  async (req, res) => {
+    const {
+      projectId,
+      taskId,
+    } = req.params;
+
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    validateObjectId(
+      taskId,
+      "taskId"
+    );
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    const task =
+      await Task.aggregate([
+        {
+          $match: {
+            _id:
+              new mongoose.Types.ObjectId(
+                taskId
+              ),
+
+            project:
+              new mongoose.Types.ObjectId(
+                projectId
+              ),
           },
-        ],
-      },
-    },
-    {
-      $lookup: {
-        from: 'subtasks', // ⚠️ ensure this matches your DB collection name
-        localField: '_id',
-        foreignField: 'task',
-        as: 'subTasks',
-        pipeline: [
-          {
-            $lookup: {
-              from: 'users',
-              localField: 'createdBy',
-              foreignField: '_id',
-              as: 'createdBy',
-              pipeline: [
-                {
-                  $project: {
-                    _id: 1,
-                    username: 1,
-                    fullname: 1,
-                    avatar: 1,
+        },
+
+        {
+          $lookup: {
+            from: "users",
+
+            localField:
+              "assignedTo",
+
+            foreignField: "_id",
+
+            as: "assignedTo",
+
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  username: 1,
+                  fullName: 1,
+                  avatar: 1,
+                  email: 1,
+                },
+              },
+            ],
+          },
+        },
+
+        {
+          $lookup: {
+            from: "users",
+
+            localField:
+              "assignedBy",
+
+            foreignField: "_id",
+
+            as: "assignedBy",
+
+            pipeline: [
+              {
+                $project: {
+                  _id: 1,
+                  username: 1,
+                  fullName: 1,
+                  avatar: 1,
+                },
+              },
+            ],
+          },
+        },
+
+        {
+          $lookup: {
+            from: "subtasks",
+
+            localField: "_id",
+
+            foreignField: "task",
+
+            as: "subTasks",
+
+            pipeline: [
+              {
+                $lookup: {
+                  from: "users",
+
+                  localField:
+                    "createdBy",
+
+                  foreignField:
+                    "_id",
+
+                  as: "createdBy",
+
+                  pipeline: [
+                    {
+                      $project: {
+                        _id: 1,
+                        username: 1,
+                        fullName: 1,
+                        avatar: 1,
+                      },
+                    },
+                  ],
+                },
+              },
+
+              {
+                $addFields: {
+                  createdBy: {
+                    $arrayElemAt:
+                      [
+                        "$createdBy",
+                        0,
+                      ],
                   },
                 },
+              },
+            ],
+          },
+        },
+
+        {
+          $addFields: {
+            assignedTo: {
+              $arrayElemAt: [
+                "$assignedTo",
+                0,
+              ],
+            },
+
+            assignedBy: {
+              $arrayElemAt: [
+                "$assignedBy",
+                0,
               ],
             },
           },
-          {
-            $addFields: {
-              createdBy: {
-                $arrayElemAt: ['$createdBy', 0],
-              },
-            },
-          },
-        ],
-      },
-    },
-    {
-      $addFields: {
-        assignedTo: {
-          $arrayElemAt: ['$assignedTo', 0],
         },
-      },
-    },
-  ]);
+      ]);
 
-  if (!task.length) {
-    throw new ApiError(404, 'Task not found');
+    if (!task.length) {
+      throw new ApiError(
+        404,
+        "Task not found"
+      );
+    }
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        task[0],
+        "Task fetched successfully"
+      )
+    );
   }
+);
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, task[0], 'Task fetched successfully'));
-});
+/* =========================================================
+   UPDATE TASK
+========================================================= */
 
-//
-// 📌 UPDATE TASK
-//
-const updateTask = asyncHandler(async (req, res) => {
-  const { projectId, taskId } = req.params;
-  const { title, description, status, assignedTo } = req.body;
+const updateTask = asyncHandler(
+  async (req, res) => {
+    const {
+      projectId,
+      taskId,
+    } = req.params;
 
-  if (
-    !mongoose.Types.ObjectId.isValid(projectId) ||
-    !mongoose.Types.ObjectId.isValid(taskId)
-  ) {
-    throw new ApiError(400, 'Invalid IDs');
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    validateObjectId(
+      taskId,
+      "taskId"
+    );
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    const task =
+      await Task.findOne({
+        _id: taskId,
+        project: projectId,
+      });
+
+    if (!task) {
+      throw new ApiError(
+        404,
+        "Task not found"
+      );
+    }
+
+    const isOwner =
+      task.assignedBy?.toString() ===
+      req.user._id.toString();
+
+    const isAdmin =
+      req.user.role ===
+      UserRoleEnum.ADMIN;
+
+    if (!isOwner && !isAdmin) {
+      throw new ApiError(
+        403,
+        "Not allowed to update task"
+      );
+    }
+
+    const {
+      title,
+      description,
+      status,
+      assignedTo,
+      priority,
+      dueDate,
+    } = req.body;
+
+    if (
+      title !== undefined &&
+      !title.trim()
+    ) {
+      throw new ApiError(
+        400,
+        "Title cannot be empty"
+      );
+    }
+
+    if (
+      status &&
+      !AvailableTaskStatuses.includes(
+        status
+      )
+    ) {
+      throw new ApiError(
+        400,
+        "Invalid task status"
+      );
+    }
+
+    await validateAssignedUser(
+      projectId,
+      assignedTo
+    );
+
+    if (title !== undefined) {
+      task.title = title.trim();
+    }
+
+    if (
+      description !== undefined
+    ) {
+      task.description =
+        description.trim();
+    }
+
+    if (status !== undefined) {
+      task.status = status;
+    }
+
+    if (
+      assignedTo !== undefined
+    ) {
+      task.assignedTo =
+        assignedTo;
+    }
+
+    if (
+      priority !== undefined
+    ) {
+      task.priority =
+        priority;
+    }
+
+    if (
+      dueDate !== undefined
+    ) {
+      task.dueDate = dueDate;
+    }
+
+    await task.save();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        task,
+        "Task updated successfully"
+      )
+    );
   }
+);
 
-  const task = await Task.findOne({
-    _id: taskId,
-    project: projectId,
-  });
+/* =========================================================
+   DELETE TASK
+========================================================= */
 
-  if (!task) {
-    throw new ApiError(404, 'Task not found in this project');
+const deleteTask = asyncHandler(
+  async (req, res) => {
+    const {
+      projectId,
+      taskId,
+    } = req.params;
+
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    validateObjectId(
+      taskId,
+      "taskId"
+    );
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    const task =
+      await Task.findOne({
+        _id: taskId,
+        project: projectId,
+      });
+
+    if (!task) {
+      throw new ApiError(
+        404,
+        "Task not found"
+      );
+    }
+
+    const isOwner =
+      task.assignedBy?.toString() ===
+      req.user._id.toString();
+
+    const isAdmin =
+      req.user.role ===
+      UserRoleEnum.ADMIN;
+
+    if (!isOwner && !isAdmin) {
+      throw new ApiError(
+        403,
+        "Not allowed to delete task"
+      );
+    }
+
+    const session =
+      await mongoose.startSession();
+
+    session.startTransaction();
+
+    try {
+      await Task.deleteOne(
+        {
+          _id: taskId,
+        },
+        { session }
+      );
+
+      await SubTask.deleteMany(
+        {
+          task: taskId,
+        },
+        { session }
+      );
+
+      await session.commitTransaction();
+
+      session.endSession();
+
+      return res.status(200).json(
+        new ApiResponse(
+          200,
+          {},
+          "Task deleted successfully"
+        )
+      );
+    } catch (error) {
+      await session.abortTransaction();
+
+      session.endSession();
+
+      throw error;
+    }
   }
+);
 
-  // Authorization
-  if (
-    (!task.assignedBy ||
-      task.assignedBy.toString() !== req.user._id.toString()) &&
-    req.user.role !== UserRoleEnum.ADMIN
-  ) {
-    throw new ApiError(403, 'Not allowed to update this task');
-  }
-
-  if (title !== undefined) task.title = title.trim();
-  if (description !== undefined) task.description = description;
-  if (status !== undefined) task.status = status;
-  if (assignedTo !== undefined) task.assignedTo = assignedTo;
-
-  await task.save();
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, task, 'Task updated successfully'));
-});
-
-//
-// 📌 DELETE TASK
-//
-const deleteTask = asyncHandler(async (req, res) => {
-  const { projectId, taskId } = req.params;
-
-  if (
-    !mongoose.Types.ObjectId.isValid(projectId) ||
-    !mongoose.Types.ObjectId.isValid(taskId)
-  ) {
-    throw new ApiError(400, 'Invalid IDs');
-  }
-
-  const task = await Task.findOne({
-    _id: taskId,
-    project: projectId,
-  });
-
-  if (!task) {
-    throw new ApiError(404, 'Task not found in this project');
-  }
-
-  if (
-    (!task.assignedBy ||
-      task.assignedBy.toString() !== req.user._id.toString()) &&
-    req.user.role !== UserRoleEnum.ADMIN
-  ) {
-    throw new ApiError(403, 'Not allowed to delete this task');
-  }
-
-  await task.deleteOne();
-  await SubTask.deleteMany({ task: taskId });
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, 'Task deleted successfully'));
-});
-
-export { createTask, updateTask, deleteTask, getTasks, getTaskById };
+export {
+  getTasks,
+  createTask,
+  getTaskById,
+  updateTask,
+  deleteTask,
+};
