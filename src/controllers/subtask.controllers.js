@@ -1,138 +1,344 @@
-import mongoose from 'mongoose';
-import { SubTask } from '#models/subtask.models.js';
-import { Task } from '#models/task.models.js';
-import { ApiError } from '#utils/ApiError.js';
-import { ApiResponse } from '#utils/ApiResponse.js';
-import { asyncHandler } from '#utils/asyncHandler.js';
-import { UserRoleEnum } from '#utils/constants.js';
+import mongoose from "mongoose";
 
-//
-// 📌 CREATE SUBTASK
-//
-const createSubTask = asyncHandler(async (req, res) => {
-  const { projectId, taskId } = req.params;
-  const { title } = req.body;
+import { SubTask } from "#models/subtask.models.js";
+import { Task } from "#models/task.models.js";
+import { ProjectMember } from "#models/projectmember.models.js";
 
+import { ApiError } from "#utils/ApiError.js";
+import { ApiResponse } from "#utils/ApiResponse.js";
+import { asyncHandler } from "#utils/asyncHandler.js";
+
+import { UserRoleEnum } from "#utils/constants.js";
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const validateObjectId = (
+  id,
+  field = "Id"
+) => {
   if (
-    !mongoose.Types.ObjectId.isValid(projectId) ||
-    !mongoose.Types.ObjectId.isValid(taskId)
+    !mongoose.Types.ObjectId.isValid(id)
   ) {
-    throw new ApiError(400, 'Invalid IDs');
+    throw new ApiError(
+      400,
+      `Invalid ${field}`
+    );
   }
+};
 
-  if (!title || !title.trim()) {
-    throw new ApiError(400, 'Title is required');
-  }
+const validateProjectAccess =
+  async (projectId, userId) => {
+    const member =
+      await ProjectMember.exists({
+        project: projectId,
+        user: userId,
+      });
 
-  const task = await Task.findOne({
-    _id: taskId,
-    project: projectId,
+    if (!member) {
+      throw new ApiError(
+        403,
+        "Access denied"
+      );
+    }
+  };
+
+const getTaskFromProject =
+  async (projectId, taskId) => {
+    const task = await Task.findOne({
+      _id: taskId,
+      project: projectId,
+    });
+
+    if (!task) {
+      throw new ApiError(
+        404,
+        "Task not found in this project"
+      );
+    }
+
+    return task;
+  };
+
+/* =========================================================
+   CREATE SUBTASK
+========================================================= */
+
+const createSubTask =
+  asyncHandler(async (req, res) => {
+    const {
+      projectId,
+      taskId,
+    } = req.params;
+
+    const { title } = req.body;
+
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    validateObjectId(
+      taskId,
+      "taskId"
+    );
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    if (!title || !title.trim()) {
+      throw new ApiError(
+        400,
+        "Subtask title is required"
+      );
+    }
+
+    await getTaskFromProject(
+      projectId,
+      taskId
+    );
+
+    const subTask =
+      await SubTask.create({
+        title: title.trim(),
+        task: taskId,
+        createdBy: req.user._id,
+      });
+
+    return res.status(201).json(
+      new ApiResponse(
+        201,
+        subTask,
+        "Subtask created successfully"
+      )
+    );
   });
 
-  if (!task) {
-    throw new ApiError(404, 'Task not found in this project');
-  }
+/* =========================================================
+   UPDATE SUBTASK
+========================================================= */
 
-  const subTask = await SubTask.create({
-    title: title.trim(),
-    task: taskId,
-    createdBy: req.user._id,
+const updateSubTask =
+  asyncHandler(async (req, res) => {
+    const {
+      projectId,
+      subTaskId,
+    } = req.params;
+
+    const {
+      title,
+      isCompleted,
+    } = req.body;
+
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
+
+    validateObjectId(
+      subTaskId,
+      "subTaskId"
+    );
+
+    const subTask =
+      await SubTask.findById(
+        subTaskId
+      )
+        .populate(
+          "task",
+          "project assignedBy"
+        )
+        .populate(
+          "createdBy",
+          "_id"
+        );
+
+    if (
+      !subTask ||
+      !subTask.task
+    ) {
+      throw new ApiError(
+        404,
+        "Subtask not found"
+      );
+    }
+
+    if (
+      subTask.task.project.toString() !==
+      projectId
+    ) {
+      throw new ApiError(
+        404,
+        "Subtask does not belong to this project"
+      );
+    }
+
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
+
+    const isCreator =
+      subTask.createdBy?._id.toString() ===
+      req.user._id.toString();
+
+    const isTaskOwner =
+      subTask.task.assignedBy?.toString() ===
+      req.user._id.toString();
+
+    const isAdmin =
+      req.user.role ===
+      UserRoleEnum.ADMIN;
+
+    if (
+      !isCreator &&
+      !isTaskOwner &&
+      !isAdmin
+    ) {
+      throw new ApiError(
+        403,
+        "Not allowed to update this subtask"
+      );
+    }
+
+    if (title !== undefined) {
+      if (!title.trim()) {
+        throw new ApiError(
+          400,
+          "Title cannot be empty"
+        );
+      }
+
+      subTask.title =
+        title.trim();
+    }
+
+    if (
+      isCompleted !== undefined
+    ) {
+      if (
+        typeof isCompleted !==
+        "boolean"
+      ) {
+        throw new ApiError(
+          400,
+          "isCompleted must be boolean"
+        );
+      }
+
+      subTask.isCompleted =
+        isCompleted;
+    }
+
+    await subTask.save();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        subTask,
+        "Subtask updated successfully"
+      )
+    );
   });
 
-  return res
-    .status(201)
-    .json(new ApiResponse(201, subTask, 'Subtask created successfully'));
-});
+/* =========================================================
+   DELETE SUBTASK
+========================================================= */
 
-//
-// 📌 UPDATE SUBTASK
-//
-const updateSubTask = asyncHandler(async (req, res) => {
-  const { projectId, subTaskId } = req.params;
-  const { title, isCompleted } = req.body;
+const deleteSubTask =
+  asyncHandler(async (req, res) => {
+    const {
+      projectId,
+      subTaskId,
+    } = req.params;
 
-  if (
-    !mongoose.Types.ObjectId.isValid(projectId) ||
-    !mongoose.Types.ObjectId.isValid(subTaskId)
-  ) {
-    throw new ApiError(400, 'Invalid IDs');
-  }
+    validateObjectId(
+      projectId,
+      "projectId"
+    );
 
-  const subTask = await SubTask.findById(subTaskId).populate('task');
+    validateObjectId(
+      subTaskId,
+      "subTaskId"
+    );
 
-  if (
-    !subTask ||
-    !subTask.task ||
-    subTask.task.project.toString() !== projectId
-  ) {
-    throw new ApiError(404, 'Subtask not found in this project');
-  }
+    const subTask =
+      await SubTask.findById(
+        subTaskId
+      )
+        .populate(
+          "task",
+          "project assignedBy"
+        )
+        .populate(
+          "createdBy",
+          "_id"
+        );
 
-  if (
-    (!subTask.createdBy ||
-      subTask.createdBy.toString() !== req.user._id.toString()) &&
-    req.user.role !== UserRoleEnum.ADMIN
-  ) {
-    throw new ApiError(403, 'Not allowed to update this subtask');
-  }
-
-  if (title !== undefined) {
-    if (!title.trim()) {
-      throw new ApiError(400, 'Title cannot be empty');
+    if (
+      !subTask ||
+      !subTask.task
+    ) {
+      throw new ApiError(
+        404,
+        "Subtask not found"
+      );
     }
-    subTask.title = title.trim();
-  }
 
-  if (isCompleted !== undefined) {
-    if (typeof isCompleted !== 'boolean') {
-      throw new ApiError(400, 'isCompleted must be boolean');
+    if (
+      subTask.task.project.toString() !==
+      projectId
+    ) {
+      throw new ApiError(
+        404,
+        "Subtask does not belong to this project"
+      );
     }
-    subTask.isCompleted = isCompleted;
-  }
 
-  await subTask.save();
+    await validateProjectAccess(
+      projectId,
+      req.user._id
+    );
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, subTask, 'Subtask updated successfully'));
-});
+    const isCreator =
+      subTask.createdBy?._id.toString() ===
+      req.user._id.toString();
 
-//
-// 📌 DELETE SUBTASK
-//
-const deleteSubTask = asyncHandler(async (req, res) => {
-  const { projectId, subTaskId } = req.params;
+    const isTaskOwner =
+      subTask.task.assignedBy?.toString() ===
+      req.user._id.toString();
 
-  if (
-    !mongoose.Types.ObjectId.isValid(projectId) ||
-    !mongoose.Types.ObjectId.isValid(subTaskId)
-  ) {
-    throw new ApiError(400, 'Invalid IDs');
-  }
+    const isAdmin =
+      req.user.role ===
+      UserRoleEnum.ADMIN;
 
-  const subTask = await SubTask.findById(subTaskId).populate('task');
+    if (
+      !isCreator &&
+      !isTaskOwner &&
+      !isAdmin
+    ) {
+      throw new ApiError(
+        403,
+        "Not allowed to delete this subtask"
+      );
+    }
 
-  if (
-    !subTask ||
-    !subTask.task ||
-    subTask.task.project.toString() !== projectId
-  ) {
-    throw new ApiError(404, 'Subtask not found in this project');
-  }
+    await subTask.deleteOne();
 
-  if (
-    (!subTask.createdBy ||
-      subTask.createdBy.toString() !== req.user._id.toString()) &&
-    req.user.role !== UserRoleEnum.ADMIN
-  ) {
-    throw new ApiError(403, 'Not allowed to delete this subtask');
-  }
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {},
+        "Subtask deleted successfully"
+      )
+    );
+  });
 
-  await subTask.deleteOne();
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, {}, 'Subtask deleted successfully'));
-});
-
-export { createSubTask, updateSubTask, deleteSubTask };
+export {
+  createSubTask,
+  updateSubTask,
+  deleteSubTask,
+};
