@@ -1,5 +1,9 @@
-import { AvailableTaskStatues, TaskStatusEnum } from '#utils/constants.js';
 import mongoose, { Schema } from 'mongoose';
+
+import {
+  AvailableTaskStatuses,
+  TaskStatusEnum,
+} from '#utils/constants.js';
 
 const taskSchema = new Schema(
   {
@@ -8,37 +12,79 @@ const taskSchema = new Schema(
       required: true,
       trim: true,
     },
-    description: String,
+
+    description: {
+      type: String,
+      trim: true,
+    },
+
     project: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
       required: true,
+      index: true,
     },
     assignedTo: {
       type: Schema.Types.ObjectId,
       ref: 'User',
+      index: true,
     },
     assignedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
+      required: true,
     },
     status: {
       type: String,
-      enum: AvailableTaskStatues,
+      enum: AvailableTaskStatuses,
       default: TaskStatusEnum.TODO,
+      index: true,
     },
+
+    priority: {
+      type: String,
+      enum: ['LOW', 'MEDIUM', 'HIGH'],
+      default: 'MEDIUM',
+    },
+
+    dueDate: {
+      type: Date,
+    },
+
     attachments: {
       type: [
         {
-          url: String,
-          mimeType: String,
-          size: Number,
+          url: {
+            type: String,
+            required: true,
+          },
+
+          localPath: {
+            type: String,
+          },
+
+          mimeType: {
+            type: String,
+          },
+
+          size: {
+            type: Number,
+          },
         },
       ],
+
       default: [],
     },
   },
-  { timestamps: true },
+
+  {
+    timestamps: true,
+  }
 );
+
+taskSchema.index({
+  project: 1,
+  status: 1,
+});
 
 export const Task = mongoose.model('Task', taskSchema);
