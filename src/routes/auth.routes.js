@@ -2,7 +2,7 @@ import {
   changeCurrentPassword,
   forgotPasswordRequest,
   getCurrentUser,
-  login,
+  loginUser,
   logoutUser,
   refreshAccessToken,
   registerUser,
@@ -31,7 +31,7 @@ const router = Router();
 
 // general routes
 router.route('/register').post(userRegisterValidator(), validate, registerUser);
-router.route('/login').post(userLoginValidator(), validate, login);
+router.route('/login').post(userLoginValidator(), validate, loginUser);
 router.route('/verify-email/:verificationToken').get(verifyEmail);
 router.route('/refresh-token').post(refreshAccessToken);
 router
