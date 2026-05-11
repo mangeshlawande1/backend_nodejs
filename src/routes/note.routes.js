@@ -3,7 +3,7 @@ import {
   createProjectNote,
   deleteProjectNote,
   getProjectNotes,
-  getProjectNotesById,
+  getProjectNoteById,
   updateProjectNote,
 } from '#controllers/note.controllers.js';
 
@@ -28,7 +28,7 @@ router.post(
 );
 
 // 📌 Get single note
-router.get('/:projectId/n/:noteId', getProjectNotesById);
+router.get('/:projectId/n/:noteId', getProjectNoteById);
 
 // 📌 Update note (Admin or owner)
 router.put(
