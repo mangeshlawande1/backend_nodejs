@@ -11,7 +11,7 @@ import { ApiResponse } from "#utils/ApiResponse.js";
 import { asyncHandler } from "#utils/asyncHandler.js";
 
 import {
-  AvailableTaskStatuses,
+  AvailableTaskStatues,
   TaskStatusEnum,
   UserRoleEnum,
 } from "#utils/constants.js";
@@ -190,7 +190,7 @@ const createTask = asyncHandler(
 
     if (
       status &&
-      !AvailableTaskStatuses.includes(
+      !AvailableTaskStatues.includes(
         status
       )
     ) {
@@ -515,7 +515,7 @@ const updateTask = asyncHandler(
 
     if (
       status &&
-      !AvailableTaskStatuses.includes(
+      !AvailableTaskStatues.includes(
         status
       )
     ) {
