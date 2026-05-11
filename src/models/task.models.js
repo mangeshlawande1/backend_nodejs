@@ -1,7 +1,7 @@
 import mongoose, { Schema } from 'mongoose';
 
 import {
-  AvailableTaskStatuses,
+  AvailableTaskStatues,
   TaskStatusEnum,
 } from '#utils/constants.js';
 
@@ -36,7 +36,7 @@ const taskSchema = new Schema(
     },
     status: {
       type: String,
-      enum: AvailableTaskStatuses,
+      enum: AvailableTaskStatues,
       default: TaskStatusEnum.TODO,
       index: true,
     },
