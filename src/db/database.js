@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { createAdminIfNotExists } from './bootstrap/createAdmin.js';
+import { createAdminIfNotExists } from '../bootstrap/createAdmin.js';
 
 
 const connectDB = async () => {
