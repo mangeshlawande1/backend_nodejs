@@ -99,9 +99,9 @@ const userSchema = new Schema(
    HASH PASSWORD
 ========================================================= */
 
-userSchema.pre("save", async function (next) {
+userSchema.pre("save", async function () {
   if (!this.isModified("password")) {
-    return next();
+    return;
   }
 
   this.password = await bcrypt.hash(
@@ -109,7 +109,6 @@ userSchema.pre("save", async function (next) {
     Number(process.env.BCRYPT_SALT_ROUNDS) || 10
   );
 
-  next();
 });
 
 /* =========================================================
